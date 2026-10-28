@@ -35,13 +35,13 @@
     intro.textContent = 'Косметичка, расписание, дневник и отметки сохраняются в хранилище браузера на этом устройстве. Аккаунта и синхронизации нет. Фото продукта не отправляются помощнику.';
     const policy = document.createElement('p');
     policy.append(safeLink('Согласие на обработку', `${LEGAL_BASE}consent.html`), document.createTextNode(' · '), safeLink('Политика обработки данных', `${LEGAL_BASE}privacy.html`), document.createTextNode(' · '), safeLink('Правила тестового приложения', `${LEGAL_BASE}terms.html`));
-    const local = row('Я прочитала уведомление и согласна на обработку данных, которые сама внесу в приложение, для хранения моей косметички, рутины и заметок на этом устройстве.', !!oldRecord.localStorage, true);
+    const local = row('Подтверждаю ознакомление с уведомлением и даю согласие на обработку данных, добавляемых в приложение для хранения косметички, рутины и заметок на этом устройстве.', !!oldRecord.localStorage, true);
     const external = row('Разрешаю отправлять текст моего отдельного вопроса через сервер приложения в OpenAI для ответа с веб-поиском. Каждый вопрос будет подтверждаться отдельно.', !!oldAssistant.external);
     const context = row('Разрешаю добавлять к вопросу только подходящие данные из моей косметички и рутины. Без этой отметки отправляется только текст вопроса.', !!oldAssistant.context);
     const note = document.createElement('p'); note.className = 'privacy-note';
     note.textContent = 'Два последних согласия необязательны и по умолчанию выключены. Их можно отозвать в настройках помощника. Не вводи медицинские документы, адрес, телефон и другие данные, которые не нужны для ухода.';
     const warning = document.createElement('p'); warning.className = 'privacy-note';
-    warning.textContent = 'Перед публичным тестом оператору нужно заполнить свои реквизиты и контакт в политике. Не используй версию для ввода данных подруг до заполнения помеченных полей.';
+    warning.textContent = 'Перед публичным тестированием оператору нужно заполнить реквизиты и контактные данные в политике. Не вводи данные до заполнения помеченных полей.';
     body.append(intro, policy, local.label, external.label, context.label, note, warning);
     title.textContent = firstRun ? 'Перед началом' : 'Согласия и приватность';
     content.replaceChildren(body);

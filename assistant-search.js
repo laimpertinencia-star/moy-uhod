@@ -19,7 +19,7 @@
   const panel = make('section', '', 'assistant-notice');
   panel.id = 'webAssistantSettings';
   panel.style.marginTop = '14px';
-  const status = make('p', config.endpoint && consent.external ? 'Веб-поиск готов. Вопрос отправляется только после подтверждения.' : 'Помощник пока работает локально. Подключи свой веб-поиск ниже, когда будешь готова.');
+  const status = make('p', config.endpoint && consent.external ? 'Веб-поиск готов. Вопрос отправляется только после подтверждения.' : 'Помощник пока работает локально. Подключи веб-поиск ниже, когда он понадобится.');
   const details = document.createElement('details');
   const summary = make('summary', 'Настроить веб-поиск и приватность');
   summary.style.cursor = 'pointer';
@@ -56,7 +56,7 @@
     endpoint.value = latestConfig.endpoint || '';
     status.textContent = latestConfig.endpoint && latestConsent.external
       ? 'Веб-поиск готов. Каждый вопрос будет подтверждаться отдельно.'
-      : 'Помощник пока работает локально. Подключи веб-поиск ниже, когда будешь готова.';
+      : 'Помощник пока работает локально. Подключи веб-поиск ниже, когда понадобится.';
   });
 
   const sendToWeb = async text => {
