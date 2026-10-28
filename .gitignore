@@ -1,0 +1,10 @@
+.DS_Store
+.env
+.env.*
+assistant-worker/.dev.vars
+assistant-worker/.dev.vars.*
+assistant-worker/.wrangler/
+assistant-worker/node_modules/
+personal/
+*backup*.json
+*.log
