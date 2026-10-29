@@ -56,7 +56,7 @@
     endpoint.value = latestConfig.endpoint || '';
     status.textContent = latestConfig.endpoint && latestConsent.external
       ? 'Веб-поиск готов. Каждый вопрос будет подтверждаться отдельно.'
-      : 'Помощник пока работает локально. Подключи веб-поиск ниже, когда понадобится.';
+      : 'Помощник пока работает локально. Подключи веб-поиск ниже, когда он понадобится.';
   });
 
   const sendToWeb = async text => {
