@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developers.cloudflare.com/workers/wrangler/schema.json",
+  "name": "moy-uhod-free-assistant",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-30",
+  "workers_dev": true,
+  "observability": { "enabled": false },
+  "ai": { "binding": "AI" },
+  "ratelimits": [
+    { "name": "ASSISTANT_RATE_LIMITER", "namespace_id": "92742", "simple": { "limit": 6, "period": 60 } }
+  ]
+}

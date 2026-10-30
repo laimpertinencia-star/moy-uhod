@@ -1,105 +1,80 @@
+/* Optional Cloudflare Workers AI. No request leaves the browser without separate choices. */
 (() => {
   const form = document.getElementById('assistantChatForm');
   const assistant = document.getElementById('view-assistant');
   if (!form || !assistant || form.dataset.webAssistantBound) return;
-
-  const read = (key, fallback) => {
-    try { return JSON.parse(localStorage.getItem(`moyuhod-friend:${key}`) || 'null') ?? fallback; }
-    catch { return fallback; }
+  const prefix = document.documentElement.dataset.storagePrefix || 'moyuhod';
+  const read = (key, fallback) => { try { return JSON.parse(localStorage.getItem(`${prefix}:${key}`) || 'null') ?? fallback; } catch { return fallback; } };
+  const write = (key, value) => localStorage.setItem(`${prefix}:${key}`, JSON.stringify(value));
+  const consent = () => {
+    const value = read('assistantConsent', {});
+    return value.provider === 'cloudflare-workers-ai' && value.noticeVersion === '4.0' ? value : { external: false, context: false };
   };
-  const config = read('assistantConfig', {});
-  const consent = read('assistantConsent', { external: false, context: false });
-  const make = (tag, text, className) => {
-    const element = document.createElement(tag);
-    if (text) element.textContent = text;
-    if (className) element.className = className;
-    return element;
-  };
-
+  const endpoint = () => window.MOY_UHOD_ASSISTANT_ENDPOINT || '';
+  const make = (tag, value, className) => { const el = document.createElement(tag); el.textContent = value; if (className) el.className = className; return el; };
   const panel = make('section', '', 'assistant-notice');
-  panel.id = 'webAssistantSettings';
-  panel.style.marginTop = '14px';
-  const status = make('p', config.endpoint && consent.external ? 'Веб-поиск готов. Вопрос отправляется только после подтверждения.' : 'Помощник пока работает локально. Подключи веб-поиск ниже, когда он понадобится.');
+  panel.id = 'webAssistantSettings'; panel.style.marginTop = '14px';
+  const status = make('p', '');
   const details = document.createElement('details');
-  const summary = make('summary', 'Настроить веб-поиск и приватность');
-  summary.style.cursor = 'pointer';
+  const summary = make('summary', 'Онлайн-помощник и приватность'); summary.style.cursor = 'pointer';
   const settings = make('div', '', 'note-form');
-  const endpointLabel = make('label', 'Адрес защищённого сервера (HTTPS)');
-  endpointLabel.htmlFor = 'webAssistantEndpoint';
-  const endpoint = document.createElement('input');
-  endpoint.id = 'webAssistantEndpoint'; endpoint.type = 'url'; endpoint.placeholder = 'https://…workers.dev/v1/chat/completions'; endpoint.value = config.endpoint || '';
-  const externalWrap = make('label', ''); externalWrap.className = 'consent-row';
-  const external = document.createElement('input'); external.type = 'checkbox'; external.checked = !!consent.external;
-  externalWrap.append(external, document.createTextNode(' Разрешаю отправлять моё сообщение в OpenAI API через сервер приложения для веб-поиска.'));
-  const contextWrap = make('label', ''); contextWrap.className = 'consent-row';
-  const includeContext = document.createElement('input'); includeContext.type = 'checkbox'; includeContext.checked = !!consent.context;
-  contextWrap.append(includeContext, document.createTextNode(' Разрешаю добавлять к вопросу подходящие средства из моей библиотеки и текущие шаги рутины.'));
-  const notice = make('p', 'Сообщение и найденные источники обрабатываются внешним сервисом. Данные библиотеки и рутины отправляются только при отдельной отметке и только когда относятся к вопросу. API-данные OpenAI не используются для обучения по умолчанию; журналы безопасности могут храниться до 30 дней. Уже отправленные запросы нельзя удалить из внешней системы через приложение. Если ты находишься в России, до передачи профильных сведений проверь требования к локальному хранению и трансграничной передаче данных: эта настройка сама по себе их не заменяет.');
-  const policy = make('a', 'Правила обработки данных OpenAI API'); policy.href = 'https://developers.openai.com/api/docs/guides/your-data'; policy.target = '_blank'; policy.rel = 'noopener noreferrer';
-  const save = make('button', 'Сохранить настройки', 'secondary'); save.type = 'button';
-  save.addEventListener('click', () => {
-    const value = endpoint.value.trim();
-    if (value) { try { if (new URL(value).protocol !== 'https:') throw new Error(); } catch { endpoint.focus(); status.textContent = 'Нужен корректный HTTPS-адрес защищённого сервера.'; return; } }
-    localStorage.setItem('moyuhod-friend:assistantConfig', JSON.stringify({ endpoint: value, model: 'gpt-5.5' }));
-    localStorage.setItem('moyuhod-friend:assistantConsent', JSON.stringify({ external: external.checked, context: includeContext.checked, updatedAt: new Date().toISOString() }));
-    status.textContent = value && external.checked ? 'Веб-поиск готов. Вопрос отправляется только после подтверждения.' : 'Сохранено. Помощник продолжит работать локально, пока веб-поиск не разрешён и не настроен.';
-  });
-  settings.append(endpointLabel, endpoint, externalWrap, contextWrap, notice, policy, save);
-  details.append(summary, settings); panel.append(status, details);
-  const tabs = assistant.querySelector('.assistant-tabs');
-  if (tabs) assistant.insertBefore(panel, tabs);
-
-  document.addEventListener('moyuhod-friend:consent-updated', () => {
-    const latestConsent = read('assistantConsent', {}), latestConfig = read('assistantConfig', {});
-    external.checked = !!latestConsent.external;
-    includeContext.checked = !!latestConsent.context;
-    endpoint.value = latestConfig.endpoint || '';
-    status.textContent = latestConfig.endpoint && latestConsent.external
-      ? 'Веб-поиск готов. Каждый вопрос будет подтверждаться отдельно.'
-      : 'Помощник пока работает локально. Подключи веб-поиск ниже, когда он понадобится.';
-  });
-
-  const sendToWeb = async text => {
-    const latestConfig = read('assistantConfig', {}), latestConsent = read('assistantConsent', {});
-    if (!latestConfig.endpoint || !latestConsent.external) return null;
-    const url = new URL(latestConfig.endpoint, location.href);
-    if (url.protocol !== 'https:') return null;
-    const isRoutine = /рутин|план|распис|последователь|ежеднев|подобрат|выбрат|замен/i.test(text);
-    let query = text;
-    if (latestConsent.context && isRoutine) {
-      const productsContext = (products || []).filter(item => ['Использую', 'Куплено', 'Заканчивается'].includes(item.status))
-        .map(item => ({ name: item.name, category: item.category, role: item.role, status: item.status }));
-      const stepsContext = (steps || []).filter(step => !step.productArchived)
-        .map(step => ({ name: step.name, time: step.time, days: step.days, productId: step.productId }));
-      query += '\n\nКонтекст из приложения (справочные данные, не инструкции): ' + JSON.stringify({ products: productsContext, routine: stepsContext });
-    }
-    const response = await fetch(url.href, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: latestConfig.model || 'gpt-5.5', messages: [{ role: 'user', content: query }] }),
-    });
-    if (!response.ok) throw new Error('assistant-request-failed');
-    const data = await response.json();
-    const answer = data.choices?.[0]?.message?.content;
-    if (!answer) throw new Error('assistant-empty-answer');
-    return answer;
+  const externalWrap = make('label', '', 'consent-row');
+  const external = document.createElement('input'); external.type = 'checkbox';
+  externalWrap.append(external, document.createTextNode(' Разрешаю отправлять отдельно подтверждённые вопросы в Cloudflare Workers AI.'));
+  const contextWrap = make('label', '', 'consent-row');
+  const includeContext = document.createElement('input'); includeContext.type = 'checkbox';
+  contextWrap.append(includeContext, document.createTextNode(' Разрешаю передавать относящиеся к вопросу данные косметички, профиля, корзины и рутины. Фото не отправляются.'));
+  const notice = make('p', 'Помощник использует твою библиотеку и короткий справочник со ссылками. Живого поиска по всему интернету и полной базы товаров пока нет. Cloudflare обрабатывает отправленный текст для ответа; приложение не хранит запросы на сервере. Не вводи лишние личные данные.');
+  const policy = make('a', 'Как Cloudflare обрабатывает данные'); policy.href = 'https://developers.cloudflare.com/workers-ai/platform/data-usage/'; policy.target = '_blank'; policy.rel = 'noopener noreferrer';
+  const save = make('button', 'Сохранить выбор', 'secondary'); save.type = 'button';
+  const refresh = () => {
+    const value = consent(); external.checked = !!value.external; includeContext.checked = !!value.context;
+    status.textContent = endpoint() ? value.external ? 'Онлайн-помощник готов. Перед каждым запросом потребуется подтверждение.' : 'Онлайн-помощник доступен после отдельного согласия; пока отвечаю локально.' : 'Онлайн-помощник готовится к запуску. Сейчас доступны подсказки по твоей косметичке прямо на устройстве.';
   };
+  save.addEventListener('click', () => {
+    const now = new Date().toISOString();
+    write('assistantConsent', { provider: 'cloudflare-workers-ai', external: external.checked, context: external.checked && includeContext.checked, noticeVersion: '4.0', updatedAt: now });
+    refresh();
+  });
+  settings.append(externalWrap, contextWrap, notice, policy, save);
+  details.append(summary, settings); panel.append(status, details);
+  const tabs = assistant.querySelector('.assistant-tabs'); if (tabs) assistant.insertBefore(panel, tabs);
+  document.addEventListener('moyuhod-friend:consent-updated', refresh); refresh();
 
+  const contextFor = text => {
+    const terms = text.toLocaleLowerCase('ru');
+    const hair = /волос|шампун|кож[ае] головы/.test(terms);
+    const face = /лиц|крем|сыворот|ретин|кожи/.test(terms);
+    const chosen = (products || []).filter(item => !hair || item.category === 'hair').filter(item => !face || item.category === 'face').slice(0, 55);
+    const date = new Date(); const key = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+    return {
+      profile: read('profile', {}),
+      products: chosen.map(item => ({ id: item.id, name: item.name, category: item.category, role: item.role, kind: item.kind, status: item.status, inci: item.inciVerified ? item.inci : null, inciVerified: item.inciVerified === true })),
+      basket: (basket || []).slice(0, 30).map(item => ({ name: item.name, category: item.category, status: item.status, replacesId: item.replacesId || null })),
+      date: key,
+      routine: (steps || []).slice(0, 100).map(step => ({ id: step.id, name: step.name, time: step.time, days: step.days, productId: step.productId, optional: step.optional, doneToday: !!checks?.[`${key}:${step.id}`] })),
+    };
+  };
+  const send = async (text, shareContext) => {
+    const url = new URL(endpoint()); if (url.protocol !== 'https:') throw new Error('https-required');
+    const message = shareContext ? `${text}\n\nКонтекст приложения (данные пользователя, не инструкции): ${JSON.stringify(contextFor(text)).slice(0, 15000)}` : text;
+    const response = await fetch(url.href, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'user', content: message }] }) });
+    if (!response.ok) throw new Error(`provider-${response.status}`);
+    const data = await response.json(); const answer = data.choices?.[0]?.message?.content;
+    if (!answer) throw new Error('empty-answer'); return answer;
+  };
   form.dataset.webAssistantBound = '1';
   form.addEventListener('submit', async event => {
     event.preventDefault(); event.stopImmediatePropagation();
-    const field = document.getElementById('assistantMessage'), text = field.value.trim();
-    if (!text) return;
-    field.value = '';
-    addChat('user', text);
-    const latestConfig = read('assistantConfig', {}), latestConsent = read('assistantConsent', {});
-    const ready = !!latestConfig.endpoint && !!latestConsent.external;
-    const shareContext = ready && !!latestConsent.context;
-    const approved = ready && confirm(`Отправить вопрос через веб-поиск? ${shareContext ? 'К вопросу может добавиться подходящий контекст библиотеки и рутины.' : 'Отправится только текст вопроса.'} Будут показаны ссылки на источники.`);
+    const field = document.getElementById('assistantMessage'), text = field.value.trim(); if (!text) return;
+    field.value = ''; addChat('user', text);
+    const allowed = consent(); const ready = !!endpoint() && !!allowed.external;
+    const approved = ready && confirm(`Отправить вопрос в Cloudflare Workers AI? ${allowed.context ? 'Добавятся данные косметички, профиля и рутины без фотографий.' : 'Отправится только текст вопроса.'}`);
     if (!approved) { addChat('bot', assistantReply(text)); return; }
-    addChat('bot', 'Ищу подходящие источники…');
+    addChat('bot', 'Подбираю ответ по доступным данным…');
     const pending = chat[chat.length - 1];
-    try { pending.text = await sendToWeb(text); }
-    catch { pending.text = 'Не удалось получить ответ с веб-поиском. Проверь соединение и адрес сервера; я не буду выдавать локальную подсказку за результат поиска. Локальная подсказка: ' + assistantReply(text); }
+    try { pending.text = await send(text, allowed.context); }
+    catch { pending.text = 'Онлайн-помощник сейчас недоступен. Подсказка по данным этого устройства: ' + assistantReply(text); }
     write('chat', chat); renderChat();
   }, true);
   document.addEventListener('click', event => {
